@@ -1,0 +1,20 @@
+:root {
+  --color-primary: #001f3f;
+}
+.main {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr;
+  grid-gap: 10px;
+}
+.header {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.card {
+  border-bottom: 1px solid #ccc;
+  margin: 1em;
+  padding-bottom: 1em;
+}
