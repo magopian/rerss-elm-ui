@@ -1,12 +1,14 @@
 module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
+import Browser.Navigation
 import Html
 import Html.Attributes
 import Http
 import Json.Decode as Decode
 import Json.Decode.Pipeline as Pipeline
 import Time
+import Url
 
 
 
@@ -14,7 +16,9 @@ import Time
 
 
 type alias Model =
-    { entries : Data }
+    { key : Browser.Navigation.Key -- Only used as a safeguard by utilities like Browser.Navigation.pushUrl
+    , entries : Data
+    }
 
 
 type Data
@@ -46,9 +50,9 @@ type alias Source =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { entries = Requested }, getEntries )
+init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init flags url key =
+    ( { key = key, entries = Requested }, getEntries )
 
 
 
@@ -57,11 +61,28 @@ init =
 
 type Msg
     = NewEntries (Result Http.Error (List Entry))
+    | UrlChanged Url.Url
+    | LinkClicked Browser.UrlRequest
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Browser.Navigation.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Browser.Navigation.load href )
+
+        UrlChanged url ->
+            let
+                _ =
+                    Debug.log "url changed" url
+            in
+            ( model, Cmd.none )
+
         NewEntries (Err error) ->
             let
                 _ =
@@ -77,7 +98,7 @@ update msg model =
 ---- VIEW ----
 
 
-view : Model -> Html.Html Msg
+view : Model -> Browser.Document Msg
 view model =
     let
         content =
@@ -91,7 +112,8 @@ view model =
                 Error error ->
                     Html.text "An error occured while requesting the entries"
     in
-    Html.div []
+    { title = "reRSS client"
+    , body =
         [ Html.section [ Html.Attributes.class "main" ]
             [ viewHeader
             , viewAside
@@ -99,6 +121,7 @@ view model =
             , viewEntry
             ]
         ]
+    }
 
 
 viewHeader : Html.Html Msg
@@ -331,9 +354,11 @@ getEntries =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.application
         { view = view
-        , init = \_ -> init
+        , init = init
+        , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
         , update = update
         , subscriptions = always Sub.none
         }
