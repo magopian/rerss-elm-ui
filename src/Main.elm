@@ -14,7 +14,13 @@ import Time
 
 
 type alias Model =
-    { entries : List Entry }
+    { entries : Data }
+
+
+type Data
+    = Requested
+    | Received (List Entry)
+    | Error Http.Error
 
 
 type alias Entry =
@@ -42,7 +48,7 @@ type alias Source =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { entries = [] }, getEntries )
+    ( { entries = Requested }, getEntries )
 
 
 
@@ -57,14 +63,14 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         NewEntries (Err error) ->
-            -- let
-            --     _ =
-            --         Debug.todo "error while retrieving entries" error
-            -- in
-            ( model, Cmd.none )
+            let
+                _ =
+                    Debug.log "error while retrieving entries" error
+            in
+            ( { model | entries = Error error }, Cmd.none )
 
         NewEntries (Ok entries) ->
-            ( { model | entries = entries }, Cmd.none )
+            ( { model | entries = Received entries }, Cmd.none )
 
 
 
@@ -73,11 +79,23 @@ update msg model =
 
 view : Model -> Html.Html Msg
 view model =
+    let
+        content =
+            case model.entries of
+                Requested ->
+                    Html.text "Entries have been requested, please hold tight!"
+
+                Received entries ->
+                    viewMain entries
+
+                Error error ->
+                    Html.text "An error occured while requesting the entries"
+    in
     Html.div []
         [ Html.section [ Html.Attributes.class "main" ]
             [ viewHeader
             , viewAside
-            , viewMain model.entries
+            , content
             , viewEntry
             ]
         ]
@@ -303,7 +321,7 @@ updatedDecoder =
 
 getEntries : Cmd Msg
 getEntries =
-    Http.get "http://localhost:1707/entry?seen=0&bookmark=0" entriesDecoder
+    Http.get "http://0.0.0.0:1707/entry?seen=0&bookmark=0" entriesDecoder
         |> Http.send NewEntries
 
 
