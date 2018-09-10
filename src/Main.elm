@@ -48,15 +48,7 @@ type alias Entry =
     , image : String
     , link : String
     , updated : Time.Posix
-    , sources : List Source
-    }
-
-
-type alias Source =
-    { title : String
-    , subtitle : String
-    , link : String
-    , active : Bool
+    , sources : List Feed
     }
 
 
@@ -68,9 +60,14 @@ type alias Feed =
     }
 
 
+type OriginalFeed
+    = OriginalFeed Feed
+
+
 type Page
-    = Home
-    | NewFeed
+    = HomePage
+    | NewFeedPage
+    | EditFeedPage OriginalFeed Feed
 
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -89,10 +86,10 @@ urlToPage : Url.Url -> Page
 urlToPage { fragment } =
     case fragment of
         Just "new-feed" ->
-            NewFeed
+            NewFeedPage
 
         _ ->
-            Home
+            HomePage
 
 
 
@@ -107,6 +104,9 @@ type Msg
     | UpdateFeedUrl String
     | AddNewFeed
     | NewFeedAdded (Result Http.Error Feed)
+    | EditingFeed OriginalFeed Feed
+    | EditFeed OriginalFeed Feed
+    | EditedFeed OriginalFeed (Result Http.Error Feed)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -181,6 +181,72 @@ update msg model =
             in
             ( { model | newFeedUrl = "", feeds = updatedFeeds }, Browser.Navigation.pushUrl model.key "#" )
 
+        EditingFeed originalFeed feed ->
+            ( { model | page = EditFeedPage originalFeed feed }, Cmd.none )
+
+        EditFeed (OriginalFeed originalFeed) feed ->
+            let
+                jsonBody =
+                    [ ( "link", Encode.string feed.link )
+                    , ( "title", Encode.string feed.title )
+                    , ( "subtitle", Encode.string feed.subtitle )
+                    , ( "active", Encode.bool feed.active )
+                    ]
+                        |> Encode.object
+                        |> Http.jsonBody
+            in
+            ( model
+            , Http.post (server ++ "/feed/" ++ originalFeed.link) jsonBody feedDecoder
+                |> Http.send (EditedFeed (OriginalFeed originalFeed))
+            )
+
+        EditedFeed originalFeed (Err error) ->
+            let
+                _ =
+                    Debug.log "error while editing feed" error
+            in
+            ( model, Cmd.none )
+
+        EditedFeed (OriginalFeed originalFeed) (Ok feed) ->
+            let
+                updatedFeeds =
+                    case model.feeds of
+                        Received feeds ->
+                            feeds
+                                -- remove the original feed
+                                |> List.filter (\f -> f /= originalFeed)
+                                |> (++) [ feed ]
+                                |> Received
+
+                        _ ->
+                            Received [ feed ]
+
+                updatedEntries =
+                    case model.entries of
+                        Received entries ->
+                            -- Change all the entries' sources from the original feed to the newly updated one
+                            entries
+                                |> List.map
+                                    (\entry ->
+                                        { entry
+                                            | sources =
+                                                if List.member originalFeed entry.sources then
+                                                    -- If the original feed is in the sources, remove it and add the new one instead
+                                                    entry.sources
+                                                        |> List.filter (\f -> f /= originalFeed)
+                                                        |> (++) [ feed ]
+
+                                                else
+                                                    entry.sources
+                                        }
+                                    )
+                                |> Received
+
+                        _ ->
+                            model.entries
+            in
+            ( { model | feeds = updatedFeeds, entries = updatedEntries }, Browser.Navigation.pushUrl model.key "#" )
+
 
 
 ---- VIEW ----
@@ -191,7 +257,7 @@ view model =
     let
         content =
             case model.page of
-                Home ->
+                HomePage ->
                     case model.entries of
                         Requested ->
                             Html.text "Entries have been requested, please hold tight!"
@@ -202,8 +268,11 @@ view model =
                         Error error ->
                             Html.text "An error occured while requesting the entries"
 
-                NewFeed ->
+                NewFeedPage ->
                     viewNewFeed model.newFeedUrl
+
+                EditFeedPage originalFeed feed ->
+                    viewEditFeed originalFeed feed
 
         feedList =
             case model.feeds of
@@ -277,7 +346,8 @@ viewFeeds feeds =
                         Html.li []
                             [ Html.a
                                 [ Html.Attributes.class "btn"
-                                , Html.Attributes.href ("#/feed/" ++ feed.link)
+                                , Html.Attributes.href "#"
+                                , Html.Events.onClick (EditingFeed (OriginalFeed feed) feed)
                                 ]
                                 [ Html.i [ Html.Attributes.class "fa fa-pencil" ] [] ]
                             , Html.a
@@ -402,8 +472,82 @@ viewNewFeed newFeedUrl =
         ]
 
 
-viewEditfeed =
-    Html.div [] []
+viewEditFeed : OriginalFeed -> Feed -> Html.Html Msg
+viewEditFeed originalFeed feed =
+    Html.form [ Html.Events.onSubmit (EditFeed originalFeed feed) ]
+        [ Html.fieldset []
+            [ Html.legend []
+                [ Html.text "Edit feed" ]
+            , Html.div [ Html.Attributes.class "input-single" ]
+                [ Html.label [ Html.Attributes.for "title" ]
+                    [ Html.text "Title" ]
+                , Html.input
+                    [ Html.Attributes.class "input-big"
+                    , Html.Attributes.id "title"
+                    , Html.Attributes.placeholder "Feed title"
+                    , Html.Attributes.type_ "text"
+                    , Html.Attributes.value feed.title
+                    , Html.Events.onInput (\newTitle -> EditingFeed originalFeed { feed | title = newTitle })
+                    ]
+                    []
+                ]
+            , Html.div [ Html.Attributes.class "input-single" ]
+                [ Html.label [ Html.Attributes.for "subtitle" ]
+                    [ Html.text "Subtitle" ]
+                , Html.input
+                    [ Html.Attributes.class "input-big"
+                    , Html.Attributes.id "subtitle"
+                    , Html.Attributes.placeholder "Feed URL"
+                    , Html.Attributes.type_ "text"
+                    , Html.Attributes.value feed.subtitle
+                    , Html.Events.onInput (\newSubtitle -> EditingFeed originalFeed { feed | subtitle = newSubtitle })
+                    ]
+                    []
+                ]
+            , Html.div [ Html.Attributes.class "input-single" ]
+                [ Html.label [ Html.Attributes.for "link" ]
+                    [ Html.text "URL" ]
+                , Html.input
+                    [ Html.Attributes.class "input-big"
+                    , Html.Attributes.id "link"
+                    , Html.Attributes.placeholder "Feed URL"
+                    , Html.Attributes.type_ "text"
+                    , Html.Attributes.value feed.link
+                    , Html.Events.onInput (\newLink -> EditingFeed originalFeed { feed | link = newLink })
+                    ]
+                    []
+                ]
+            , Html.div [ Html.Attributes.class "input-single" ]
+                [ Html.span [ Html.Attributes.class "switch" ]
+                    [ Html.input
+                        [ Html.Attributes.checked feed.active
+                        , Html.Attributes.id "active"
+                        , Html.Attributes.class "switch"
+                        , Html.Attributes.name "active"
+                        , Html.Attributes.type_ "checkbox"
+                        , Html.Events.onCheck (\newActive -> EditingFeed originalFeed { feed | active = newActive })
+                        ]
+                        []
+                    , Html.label [ Html.Attributes.for "active" ]
+                        [ Html.text "Active" ]
+                    ]
+                ]
+            , Html.div [ Html.Attributes.class "input-single" ]
+                [ Html.input
+                    [ Html.Attributes.class "button"
+                    , Html.Attributes.type_ "submit"
+                    , Html.Attributes.value "Save"
+                    ]
+                    []
+                , Html.a
+                    [ Html.Attributes.class "button button-link"
+                    , Html.Attributes.href "/"
+                    , Html.Attributes.type_ "reset"
+                    ]
+                    [ Html.text "Cancel" ]
+                ]
+            ]
+        ]
 
 
 viewEntry =
@@ -433,16 +577,7 @@ entryDecoder =
         |> Pipeline.optional "image" Decode.string ""
         |> Pipeline.required "link" Decode.string
         |> Pipeline.required "updated" updatedDecoder
-        |> Pipeline.required "sources" (Decode.list sourceDecoder)
-
-
-sourceDecoder : Decode.Decoder Source
-sourceDecoder =
-    Decode.succeed Source
-        |> Pipeline.required "title" Decode.string
-        |> Pipeline.required "subtitle" Decode.string
-        |> Pipeline.required "link" Decode.string
-        |> Pipeline.required "active" Decode.bool
+        |> Pipeline.required "sources" (Decode.list feedDecoder)
 
 
 feedsDecoder : Decode.Decoder (List Feed)
