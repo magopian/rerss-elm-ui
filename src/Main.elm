@@ -170,7 +170,11 @@ update msg model =
                 updatedFeeds =
                     case model.feeds of
                         Received feeds ->
-                            Received (feeds ++ [ feed ])
+                            if List.member feed feeds then
+                                model.feeds
+
+                            else
+                                Received (feeds ++ [ feed ])
 
                         _ ->
                             Received [ feed ]
