@@ -24,15 +24,16 @@ server =
 
 type alias Model =
     { key : Browser.Navigation.Key -- Only used as a safeguard by utilities like Browser.Navigation.pushUrl
-    , entries : Data
+    , entries : RemoteData Entry
+    , feeds : RemoteData Feed
     , page : Page
     , newFeedUrl : String
     }
 
 
-type Data
+type RemoteData a
     = Requested
-    | Received (List Entry)
+    | Received (List a)
     | Error Http.Error
 
 
@@ -59,6 +60,14 @@ type alias Source =
     }
 
 
+type alias Feed =
+    { title : String
+    , subtitle : String
+    , link : String
+    , active : Bool
+    }
+
+
 type Page
     = Home
     | NewFeed
@@ -66,7 +75,14 @@ type Page
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { key = key, entries = Requested, page = urlToPage url, newFeedUrl = "" }, getEntries )
+    ( { key = key
+      , entries = Requested
+      , feeds = Requested
+      , page = urlToPage url
+      , newFeedUrl = ""
+      }
+    , Cmd.batch [ getEntries, getFeeds ]
+    )
 
 
 urlToPage : Url.Url -> Page
@@ -85,11 +101,12 @@ urlToPage { fragment } =
 
 type Msg
     = NewEntries (Result Http.Error (List Entry))
+    | NewFeeds (Result Http.Error (List Feed))
     | UrlChanged Url.Url
     | LinkClicked Browser.UrlRequest
     | UpdateFeedUrl String
     | AddNewFeed
-    | NewFeedAdded (Result Http.Error Decode.Value)
+    | NewFeedAdded (Result Http.Error Feed)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -116,6 +133,16 @@ update msg model =
         NewEntries (Ok entries) ->
             ( { model | entries = Received entries }, Cmd.none )
 
+        NewFeeds (Err error) ->
+            let
+                _ =
+                    Debug.log "error while retrieving feeds" error
+            in
+            ( { model | feeds = Error error }, Cmd.none )
+
+        NewFeeds (Ok feeds) ->
+            ( { model | feeds = Received feeds }, Cmd.none )
+
         UpdateFeedUrl feedUrl ->
             ( { model | newFeedUrl = feedUrl }, Cmd.none )
 
@@ -127,7 +154,7 @@ update msg model =
                         |> Http.jsonBody
             in
             ( model
-            , Http.post (server ++ "/feed") jsonBody Decode.value
+            , Http.post (server ++ "/feed") jsonBody feedDecoder
                 |> Http.send NewFeedAdded
             )
 
@@ -138,12 +165,17 @@ update msg model =
             in
             ( model, Cmd.none )
 
-        NewFeedAdded (Ok response) ->
+        NewFeedAdded (Ok feed) ->
             let
-                _ =
-                    Debug.log "new feed added" response
+                updatedFeeds =
+                    case model.feeds of
+                        Received feeds ->
+                            Received (feeds ++ [ feed ])
+
+                        _ ->
+                            Received [ feed ]
             in
-            ( { model | newFeedUrl = "" }, Browser.Navigation.pushUrl model.key "#" )
+            ( { model | newFeedUrl = "", feeds = updatedFeeds }, Browser.Navigation.pushUrl model.key "#" )
 
 
 
@@ -168,12 +200,23 @@ view model =
 
                 NewFeed ->
                     viewNewFeed model.newFeedUrl
+
+        feedList =
+            case model.feeds of
+                Requested ->
+                    Html.text "loading feeds"
+
+                Received feeds ->
+                    viewFeeds feeds
+
+                Error error ->
+                    Html.text "An error occured while requesting the feeds"
     in
     { title = "reRSS client"
     , body =
         [ Html.section [ Html.Attributes.class "main" ]
             [ viewHeader
-            , viewAside
+            , feedList
             , content
             , viewEntry
             ]
@@ -220,15 +263,26 @@ viewHeader =
         ]
 
 
-viewAside : Html.Html Msg
-viewAside =
+viewFeeds : List Feed -> Html.Html Msg
+viewFeeds feeds =
     Html.aside []
-        [ viewFeeds
+        [ Html.ul []
+            (feeds
+                |> List.map
+                    (\feed ->
+                        Html.li []
+                            [ Html.a
+                                [ Html.Attributes.class "btn"
+                                , Html.Attributes.href ("#/feed/" ++ feed.link)
+                                ]
+                                [ Html.i [ Html.Attributes.class "fa fa-pencil" ] [] ]
+                            , Html.a
+                                [ Html.Attributes.href "#" ]
+                                [ Html.text (" " ++ feed.title) ]
+                            ]
+                    )
+            )
         ]
-
-
-viewFeeds =
-    Html.div [] []
 
 
 viewEntries : List Entry -> Html.Html Msg
@@ -387,6 +441,20 @@ sourceDecoder =
         |> Pipeline.required "active" Decode.bool
 
 
+feedsDecoder : Decode.Decoder (List Feed)
+feedsDecoder =
+    Decode.field "feeds" (Decode.list feedDecoder)
+
+
+feedDecoder : Decode.Decoder Feed
+feedDecoder =
+    Decode.succeed Feed
+        |> Pipeline.required "title" Decode.string
+        |> Pipeline.required "subtitle" Decode.string
+        |> Pipeline.required "link" Decode.string
+        |> Pipeline.required "active" Decode.bool
+
+
 updatedDecoder : Decode.Decoder Time.Posix
 updatedDecoder =
     Decode.int
@@ -397,6 +465,12 @@ getEntries : Cmd Msg
 getEntries =
     Http.get (server ++ "/entry?seen=0&bookmark=0") entriesDecoder
         |> Http.send NewEntries
+
+
+getFeeds : Cmd Msg
+getFeeds =
+    Http.get (server ++ "/feed") feedsDecoder
+        |> Http.send NewFeeds
 
 
 
