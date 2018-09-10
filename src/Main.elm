@@ -4,9 +4,11 @@ import Browser
 import Browser.Navigation
 import Html
 import Html.Attributes
+import Html.Events
 import Http
 import Json.Decode as Decode
 import Json.Decode.Pipeline as Pipeline
+import Json.Encode as Encode
 import Time
 import Url
 
@@ -24,6 +26,7 @@ type alias Model =
     { key : Browser.Navigation.Key -- Only used as a safeguard by utilities like Browser.Navigation.pushUrl
     , entries : Data
     , page : Page
+    , newFeedUrl : String
     }
 
 
@@ -63,7 +66,7 @@ type Page
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { key = key, entries = Requested, page = urlToPage url }, getEntries )
+    ( { key = key, entries = Requested, page = urlToPage url, newFeedUrl = "" }, getEntries )
 
 
 urlToPage : Url.Url -> Page
@@ -84,6 +87,9 @@ type Msg
     = NewEntries (Result Http.Error (List Entry))
     | UrlChanged Url.Url
     | LinkClicked Browser.UrlRequest
+    | UpdateFeedUrl String
+    | AddNewFeed
+    | NewFeedAdded (Result Http.Error Decode.Value)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -110,6 +116,35 @@ update msg model =
         NewEntries (Ok entries) ->
             ( { model | entries = Received entries }, Cmd.none )
 
+        UpdateFeedUrl feedUrl ->
+            ( { model | newFeedUrl = feedUrl }, Cmd.none )
+
+        AddNewFeed ->
+            let
+                jsonBody =
+                    [ ( "link", Encode.string model.newFeedUrl ) ]
+                        |> Encode.object
+                        |> Http.jsonBody
+            in
+            ( model
+            , Http.post (server ++ "/feed") jsonBody Decode.value
+                |> Http.send NewFeedAdded
+            )
+
+        NewFeedAdded (Err error) ->
+            let
+                _ =
+                    Debug.log "error while adding new feed" error
+            in
+            ( model, Cmd.none )
+
+        NewFeedAdded (Ok response) ->
+            let
+                _ =
+                    Debug.log "new feed added" response
+            in
+            ( { model | newFeedUrl = "" }, Browser.Navigation.pushUrl model.key "#" )
+
 
 
 ---- VIEW ----
@@ -126,13 +161,13 @@ view model =
                             Html.text "Entries have been requested, please hold tight!"
 
                         Received entries ->
-                            viewMain entries
+                            viewEntries entries
 
                         Error error ->
                             Html.text "An error occured while requesting the entries"
 
                 NewFeed ->
-                    viewNewFeed
+                    viewNewFeed model.newFeedUrl
     in
     { title = "reRSS client"
     , body =
@@ -194,15 +229,6 @@ viewAside =
 
 viewFeeds =
     Html.div [] []
-
-
-viewMain : List Entry -> Html.Html Msg
-viewMain entries =
-    Html.section []
-        [ viewEntries entries
-        , viewNewFeed
-        , viewEditfeed
-        ]
 
 
 viewEntries : List Entry -> Html.Html Msg
@@ -287,10 +313,10 @@ viewEntryItem entry =
         ]
 
 
-viewNewFeed : Html.Html Msg
-viewNewFeed =
+viewNewFeed : String -> Html.Html Msg
+viewNewFeed newFeedUrl =
     Html.div []
-        [ Html.form [ Html.Attributes.attribute "onsubmit" "{ add }" ]
+        [ Html.form [ Html.Events.onSubmit AddNewFeed ]
             [ Html.fieldset []
                 [ Html.legend []
                     [ Html.text "Add a new feed" ]
@@ -302,9 +328,10 @@ viewNewFeed =
                         , Html.Attributes.id "link"
                         , Html.Attributes.placeholder "Feed URL"
                         , Html.Attributes.type_ "text"
+                        , Html.Events.onInput UpdateFeedUrl
+                        , Html.Attributes.value newFeedUrl
                         ]
                         []
-                    , Html.text "  "
                     ]
                 , Html.div [ Html.Attributes.class "input-single" ]
                     [ Html.input [ Html.Attributes.class "button", Html.Attributes.type_ "submit", Html.Attributes.value "Create new feed" ]
