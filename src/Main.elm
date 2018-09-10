@@ -11,6 +11,11 @@ import Time
 import Url
 
 
+server : String
+server =
+    "http://0.0.0.0:1707"
+
+
 
 ---- MODEL ----
 
@@ -152,7 +157,7 @@ viewHeader =
                 ]
                 [ Html.text "Feeds" ]
             , Html.a
-                [ Html.Attributes.href "http://0.0.0.0:1707/myfeed/atom"
+                [ Html.Attributes.href (server ++ "/myfeed/atom")
                 , Html.Attributes.class "button button-link"
                 ]
                 [ Html.i [ Html.Attributes.class "fa fa-rss" ] []
@@ -363,7 +368,7 @@ updatedDecoder =
 
 getEntries : Cmd Msg
 getEntries =
-    Http.get "http://0.0.0.0:1707/entry?seen=0&bookmark=0" entriesDecoder
+    Http.get (server ++ "/entry?seen=0&bookmark=0") entriesDecoder
         |> Http.send NewEntries
 
 
