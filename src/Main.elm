@@ -18,6 +18,7 @@ import Url
 type alias Model =
     { key : Browser.Navigation.Key -- Only used as a safeguard by utilities like Browser.Navigation.pushUrl
     , entries : Data
+    , page : Page
     }
 
 
@@ -50,9 +51,24 @@ type alias Source =
     }
 
 
+type Page
+    = Home
+    | NewFeed
+
+
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { key = key, entries = Requested }, getEntries )
+    ( { key = key, entries = Requested, page = urlToPage url }, getEntries )
+
+
+urlToPage : Url.Url -> Page
+urlToPage { fragment } =
+    case fragment of
+        Just "new-feed" ->
+            NewFeed
+
+        _ ->
+            Home
 
 
 
@@ -77,11 +93,7 @@ update msg model =
                     ( model, Browser.Navigation.load href )
 
         UrlChanged url ->
-            let
-                _ =
-                    Debug.log "url changed" url
-            in
-            ( model, Cmd.none )
+            ( { model | page = urlToPage url }, Cmd.none )
 
         NewEntries (Err error) ->
             let
@@ -102,15 +114,20 @@ view : Model -> Browser.Document Msg
 view model =
     let
         content =
-            case model.entries of
-                Requested ->
-                    Html.text "Entries have been requested, please hold tight!"
+            case model.page of
+                Home ->
+                    case model.entries of
+                        Requested ->
+                            Html.text "Entries have been requested, please hold tight!"
 
-                Received entries ->
-                    viewMain entries
+                        Received entries ->
+                            viewMain entries
 
-                Error error ->
-                    Html.text "An error occured while requesting the entries"
+                        Error error ->
+                            Html.text "An error occured while requesting the entries"
+
+                NewFeed ->
+                    viewNewFeed
     in
     { title = "reRSS client"
     , body =
@@ -178,7 +195,7 @@ viewMain : List Entry -> Html.Html Msg
 viewMain entries =
     Html.section []
         [ viewEntries entries
-        , viewNewfeed
+        , viewNewFeed
         , viewEditfeed
         ]
 
@@ -265,32 +282,34 @@ viewEntryItem entry =
         ]
 
 
-viewNewfeed =
-    Html.div [] []
-
-
-
--- Html.div []
---     [ Html.form [ Html.Attributes.attribute "onsubmit" "{ add }" ]
---         [ Html.fieldset []
---             [ Html.legend []
---                 [ Html.text "Add a new feed" ]
---             , Html.div [ Html.Attributes.class "input-single" ]
---                 [ Html.label [ Html.Attributes.for "link" ]
---                     [ Html.text "URL" ]
---                 , Html.input [ Html.Attributes.class "input-big", Html.Attributes.id "link", Html.Attributes.placeholder "Feed URL", Html.Attributes.type_ "text" ]
---                     []
---                 , Html.text "  "
---                 ]
---             , Html.div [ Html.Attributes.class "input-single" ]
---                 [ Html.input [ Html.Attributes.class "button", Html.Attributes.type_ "submit", Html.Attributes.value "Create new feed" ]
---                     []
---                 , Html.a [ Html.Attributes.class "button button-link", Html.Attributes.href "/", Html.Attributes.type_ "reset" ]
---                     [ Html.text "Cancel" ]
---                 ]
---             ]
---         ]
---     ]
+viewNewFeed : Html.Html Msg
+viewNewFeed =
+    Html.div []
+        [ Html.form [ Html.Attributes.attribute "onsubmit" "{ add }" ]
+            [ Html.fieldset []
+                [ Html.legend []
+                    [ Html.text "Add a new feed" ]
+                , Html.div [ Html.Attributes.class "input-single" ]
+                    [ Html.label [ Html.Attributes.for "link" ]
+                        [ Html.text "URL" ]
+                    , Html.input
+                        [ Html.Attributes.class "input-big"
+                        , Html.Attributes.id "link"
+                        , Html.Attributes.placeholder "Feed URL"
+                        , Html.Attributes.type_ "text"
+                        ]
+                        []
+                    , Html.text "  "
+                    ]
+                , Html.div [ Html.Attributes.class "input-single" ]
+                    [ Html.input [ Html.Attributes.class "button", Html.Attributes.type_ "submit", Html.Attributes.value "Create new feed" ]
+                        []
+                    , Html.a [ Html.Attributes.class "button button-link", Html.Attributes.href "/", Html.Attributes.type_ "reset" ]
+                        [ Html.text "Cancel" ]
+                    ]
+                ]
+            ]
+        ]
 
 
 viewEditfeed =
