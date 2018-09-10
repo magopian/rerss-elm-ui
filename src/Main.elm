@@ -27,7 +27,6 @@ type alias Model =
     , entries : RemoteData Entry
     , feeds : RemoteData Feed
     , page : Page
-    , newFeedUrl : String
     }
 
 
@@ -66,7 +65,7 @@ type OriginalFeed
 
 type Page
     = HomePage
-    | NewFeedPage
+    | NewFeedPage String
     | EditFeedPage OriginalFeed Feed
 
 
@@ -76,7 +75,6 @@ init flags url key =
       , entries = Requested
       , feeds = Requested
       , page = urlToPage url
-      , newFeedUrl = ""
       }
     , Cmd.batch [ getEntries, getFeeds ]
     )
@@ -86,7 +84,7 @@ urlToPage : Url.Url -> Page
 urlToPage { fragment } =
     case fragment of
         Just "new-feed" ->
-            NewFeedPage
+            NewFeedPage ""
 
         _ ->
             HomePage
@@ -101,8 +99,8 @@ type Msg
     | NewFeeds (Result Http.Error (List Feed))
     | UrlChanged Url.Url
     | LinkClicked Browser.UrlRequest
-    | UpdateFeedUrl String
-    | AddNewFeed
+    | AddingNewFeed String
+    | AddNewFeed String
     | NewFeedAdded (Result Http.Error Feed)
     | EditingFeed OriginalFeed Feed
     | EditFeed OriginalFeed Feed
@@ -143,13 +141,13 @@ update msg model =
         NewFeeds (Ok feeds) ->
             ( { model | feeds = Received feeds }, Cmd.none )
 
-        UpdateFeedUrl feedUrl ->
-            ( { model | newFeedUrl = feedUrl }, Cmd.none )
+        AddingNewFeed feedUrl ->
+            ( { model | page = NewFeedPage feedUrl }, Cmd.none )
 
-        AddNewFeed ->
+        AddNewFeed feedUrl ->
             let
                 jsonBody =
-                    [ ( "link", Encode.string model.newFeedUrl ) ]
+                    [ ( "link", Encode.string feedUrl ) ]
                         |> Encode.object
                         |> Http.jsonBody
             in
@@ -179,7 +177,7 @@ update msg model =
                         _ ->
                             Received [ feed ]
             in
-            ( { model | newFeedUrl = "", feeds = updatedFeeds }, Browser.Navigation.pushUrl model.key "#" )
+            ( { model | feeds = updatedFeeds }, Browser.Navigation.pushUrl model.key "#" )
 
         EditingFeed originalFeed feed ->
             ( { model | page = EditFeedPage originalFeed feed }, Cmd.none )
@@ -268,8 +266,8 @@ view model =
                         Error error ->
                             Html.text "An error occured while requesting the entries"
 
-                NewFeedPage ->
-                    viewNewFeed model.newFeedUrl
+                NewFeedPage newFeedUrl ->
+                    viewNewFeed newFeedUrl
 
                 EditFeedPage originalFeed feed ->
                     viewEditFeed originalFeed feed
@@ -444,7 +442,7 @@ viewEntryItem entry =
 viewNewFeed : String -> Html.Html Msg
 viewNewFeed newFeedUrl =
     Html.div []
-        [ Html.form [ Html.Events.onSubmit AddNewFeed ]
+        [ Html.form [ Html.Events.onSubmit (AddNewFeed newFeedUrl) ]
             [ Html.fieldset []
                 [ Html.legend []
                     [ Html.text "Add a new feed" ]
@@ -456,7 +454,7 @@ viewNewFeed newFeedUrl =
                         , Html.Attributes.id "link"
                         , Html.Attributes.placeholder "Feed URL"
                         , Html.Attributes.type_ "text"
-                        , Html.Events.onInput UpdateFeedUrl
+                        , Html.Events.onInput AddingNewFeed
                         , Html.Attributes.value newFeedUrl
                         ]
                         []
