@@ -27,6 +27,7 @@ type alias Model =
     , entries : RemoteData Entry
     , feeds : RemoteData Feed
     , page : Page
+    , refreshing : Bool
     }
 
 
@@ -75,6 +76,7 @@ init flags url key =
       , entries = Requested
       , feeds = Requested
       , page = urlToPage url
+      , refreshing = True
       }
     , Cmd.batch [ getEntries, getFeeds ]
     )
@@ -127,10 +129,10 @@ update msg model =
                 _ =
                     Debug.log "error while retrieving entries" error
             in
-            ( { model | entries = Error error }, Cmd.none )
+            ( { model | entries = Error error, refreshing = False }, Cmd.none )
 
         NewEntries (Ok entries) ->
-            ( { model | entries = Received entries }, Cmd.none )
+            ( { model | entries = Received entries, refreshing = False }, Cmd.none )
 
         NewFeeds (Err error) ->
             let
@@ -178,7 +180,7 @@ update msg model =
                         _ ->
                             Received [ feed ]
             in
-            ( { model | feeds = updatedFeeds }, Cmd.batch [ Browser.Navigation.pushUrl model.key "#", getEntries ] )
+            ( { model | feeds = updatedFeeds, refreshing = True }, Cmd.batch [ Browser.Navigation.pushUrl model.key "#", getEntries ] )
 
         EditingFeed originalFeed feed ->
             ( { model | page = EditFeedPage originalFeed feed }, Cmd.none )
@@ -247,7 +249,7 @@ update msg model =
             ( { model | feeds = updatedFeeds, entries = updatedEntries }, Browser.Navigation.pushUrl model.key "#" )
 
         Refresh ->
-            ( model, Cmd.batch [ getEntries, getFeeds ] )
+            ( { model | refreshing = True }, Cmd.batch [ getEntries, getFeeds ] )
 
 
 
@@ -290,7 +292,7 @@ view model =
     { title = "reRSS client"
     , body =
         [ Html.section [ Html.Attributes.class "main" ]
-            [ viewHeader
+            [ viewHeader model.refreshing
             , feedList
             , content
             , viewEntry
@@ -299,8 +301,8 @@ view model =
     }
 
 
-viewHeader : Html.Html Msg
-viewHeader =
+viewHeader : Bool -> Html.Html Msg
+viewHeader refreshing =
     Html.header [ Html.Attributes.class "header" ]
         [ Html.progress [ Html.Attributes.style "display" "none" ] []
         , Html.section []
@@ -326,7 +328,18 @@ viewHeader =
                 , Html.Attributes.class "button"
                 , Html.Events.onClick Refresh
                 ]
-                [ Html.i [ Html.Attributes.class "fa fa-refresh" ] [] ]
+                [ Html.i
+                    [ Html.Attributes.class <|
+                        "fa fa-refresh"
+                            ++ (if refreshing then
+                                    " fa-spin"
+
+                                else
+                                    ""
+                               )
+                    ]
+                    []
+                ]
             , Html.text " "
             , Html.a
                 [ Html.Attributes.href "#new-feed"
