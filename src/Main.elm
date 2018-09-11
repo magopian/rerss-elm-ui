@@ -105,6 +105,7 @@ type Msg
     | EditingFeed OriginalFeed Feed
     | EditFeed OriginalFeed Feed
     | EditedFeed OriginalFeed (Result Http.Error Feed)
+    | Refresh
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -245,6 +246,9 @@ update msg model =
             in
             ( { model | feeds = updatedFeeds, entries = updatedEntries }, Browser.Navigation.pushUrl model.key "#" )
 
+        Refresh ->
+            ( model, Cmd.batch [ getEntries, getFeeds ] )
+
 
 
 ---- VIEW ----
@@ -320,6 +324,7 @@ viewHeader =
             [ Html.a
                 [ Html.Attributes.href "#"
                 , Html.Attributes.class "button"
+                , Html.Events.onClick Refresh
                 ]
                 [ Html.i [ Html.Attributes.class "fa fa-refresh" ] [] ]
             , Html.text " "
