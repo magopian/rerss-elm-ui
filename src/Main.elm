@@ -108,6 +108,8 @@ type Msg
     | EditFeed OriginalFeed Feed
     | EditedFeed OriginalFeed (Result Http.Error Feed)
     | Refresh
+    | Bookmark Entry
+    | UpdatedEntry Entry (Result Http.Error Entry)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -250,6 +252,47 @@ update msg model =
 
         Refresh ->
             ( { model | refreshing = True }, Cmd.batch [ getEntries, getFeeds ] )
+
+        Bookmark entry ->
+            let
+                jsonBody =
+                    [ ( "bookmark", Encode.bool (not entry.bookmark) ) ]
+                        |> Encode.object
+                        |> Http.jsonBody
+            in
+            ( { model | refreshing = True }
+            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+                |> Http.send (UpdatedEntry entry)
+            )
+
+        UpdatedEntry originalEntry (Err error) ->
+            let
+                _ =
+                    Debug.log "error while updating entry" error
+            in
+            ( { model | refreshing = False }, Cmd.none )
+
+        UpdatedEntry originalEntry (Ok entry) ->
+            let
+                updatedEntries =
+                    case model.entries of
+                        Received entries ->
+                            entries
+                                -- replace the original entry with the updated one
+                                |> List.map
+                                    (\e ->
+                                        if e /= originalEntry then
+                                            e
+
+                                        else
+                                            entry
+                                    )
+                                |> Received
+
+                        _ ->
+                            Received [ entry ]
+            in
+            ( { model | entries = updatedEntries, refreshing = False }, Cmd.none )
 
 
 
@@ -441,7 +484,10 @@ viewEntryItem entry =
                 [ Html.i [ Html.Attributes.class "fa fa-stop" ]
                     []
                 ]
-            , Html.button [ Html.Attributes.title "Read it later" ]
+            , Html.button
+                [ Html.Attributes.title "Bookmark: Read it later"
+                , Html.Events.onClick <| Bookmark entry
+                ]
                 [ Html.i [ Html.Attributes.class "fa fa-bookmark" ]
                     []
                 ]
