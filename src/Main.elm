@@ -213,16 +213,13 @@ update msg model =
         EditedFeed (OriginalFeed originalFeed) (Ok feed) ->
             let
                 updatedFeeds =
-                    case model.feeds of
-                        Received feeds ->
-                            feeds
-                                -- remove the original feed
-                                |> List.filter (\f -> f /= originalFeed)
-                                |> (++) [ feed ]
-                                |> Received
+                    Received <|
+                        case model.feeds of
+                            Received feeds ->
+                                listReplace originalFeed feed feeds
 
-                        _ ->
-                            Received [ feed ]
+                            _ ->
+                                [ feed ]
 
                 updatedEntries =
                     case model.entries of
@@ -233,14 +230,7 @@ update msg model =
                                     (\entry ->
                                         { entry
                                             | sources =
-                                                if List.member originalFeed entry.sources then
-                                                    -- If the original feed is in the sources, remove it and add the new one instead
-                                                    entry.sources
-                                                        |> List.filter (\f -> f /= originalFeed)
-                                                        |> (++) [ feed ]
-
-                                                else
-                                                    entry.sources
+                                                listReplace originalFeed feed entry.sources
                                         }
                                     )
                                 |> Received
@@ -275,22 +265,13 @@ update msg model =
         UpdatedEntry originalEntry (Ok entry) ->
             let
                 updatedEntries =
-                    case model.entries of
-                        Received entries ->
-                            entries
-                                -- replace the original entry with the updated one
-                                |> List.map
-                                    (\e ->
-                                        if e /= originalEntry then
-                                            e
+                    Received <|
+                        case model.entries of
+                            Received entries ->
+                                listReplace originalEntry entry entries
 
-                                        else
-                                            entry
-                                    )
-                                |> Received
-
-                        _ ->
-                            Received [ entry ]
+                            _ ->
+                                [ entry ]
             in
             ( { model | entries = updatedEntries, refreshing = False }, Cmd.none )
 
@@ -672,6 +653,23 @@ getFeeds : Cmd Msg
 getFeeds =
     Http.get (server ++ "/feed") feedsDecoder
         |> Http.send NewFeeds
+
+
+
+---- UTILS ----
+
+
+listReplace : a -> a -> List a -> List a
+listReplace original updated list =
+    list
+        |> List.map
+            (\element ->
+                if element == original then
+                    updated
+
+                else
+                    element
+            )
 
 
 
