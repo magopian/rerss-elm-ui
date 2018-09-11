@@ -9,6 +9,7 @@ import Http
 import Json.Decode as Decode
 import Json.Decode.Pipeline as Pipeline
 import Json.Encode as Encode
+import Task
 import Time
 import Url
 
@@ -29,6 +30,7 @@ type alias Model =
     , page : Page
     , refreshing : Bool
     , filter : Filter
+    , zone : Time.Zone
     }
 
 
@@ -86,8 +88,9 @@ init flags url key =
       , page = urlToPage url
       , refreshing = True
       , filter = All
+      , zone = Time.utc
       }
-    , Cmd.batch [ getEntries, getFeeds ]
+    , Cmd.batch [ getEntries, getFeeds, Task.perform AdjustTimeZone Time.here ]
     )
 
 
@@ -122,6 +125,7 @@ type Msg
     | MarkSeen Entry
     | UpdatedEntry Entry (Result Http.Error Entry)
     | UpdateFilter Filter
+    | AdjustTimeZone Time.Zone
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -314,6 +318,9 @@ update msg model =
         UpdateFilter filter ->
             ( { model | filter = filter }, Cmd.none )
 
+        AdjustTimeZone zone ->
+            ( { model | zone = zone }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -330,7 +337,7 @@ view model =
                             Html.text "Entries have been requested, please hold tight!"
 
                         Received entries ->
-                            viewEntries entries model.filter
+                            viewEntries entries model.filter model.zone
 
                         Error error ->
                             Html.text "An error occured while requesting the entries"
@@ -438,8 +445,8 @@ viewFeeds feeds =
         ]
 
 
-viewEntries : List Entry -> Filter -> Html.Html Msg
-viewEntries entries currentFilter =
+viewEntries : List Entry -> Filter -> Time.Zone -> Html.Html Msg
+viewEntries entries currentFilter zone =
     let
         filteredEntries =
             case currentFilter of
@@ -458,7 +465,7 @@ viewEntries entries currentFilter =
     Html.div []
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.map viewEntryItem filteredEntries)
+            (List.map (viewEntryItem zone) filteredEntries)
         ]
 
 
@@ -487,8 +494,8 @@ viewTabs currentFilter =
         ]
 
 
-viewEntryItem : Entry -> Html.Html Msg
-viewEntryItem entry =
+viewEntryItem : Time.Zone -> Entry -> Html.Html Msg
+viewEntryItem zone entry =
     let
         titleNode =
             Html.h4 []
@@ -514,9 +521,7 @@ viewEntryItem entry =
                 )
             ]
         , Html.h6 []
-            [ Time.posixToMillis entry.updated
-                |> String.fromInt
-                |> Html.text
+            [ Html.text <| displayTime entry.updated zone
             ]
         , Html.a [ Html.Attributes.href "#" ]
             entryContent
@@ -727,7 +732,7 @@ feedDecoder =
 updatedDecoder : Decode.Decoder Time.Posix
 updatedDecoder =
     Decode.int
-        |> Decode.map Time.millisToPosix
+        |> Decode.map (\seconds -> seconds * 1000 |> Time.millisToPosix)
 
 
 getEntries : Cmd Msg
@@ -757,6 +762,70 @@ listReplace original updated list =
                 else
                     element
             )
+
+
+displayTime : Time.Posix -> Time.Zone -> String
+displayTime time zone =
+    let
+        year =
+            String.fromInt (Time.toYear zone time)
+
+        month =
+            stringFromMonth (Time.toMonth zone time)
+
+        day =
+            String.fromInt (Time.toDay zone time)
+
+        hour =
+            String.fromInt (Time.toHour zone time)
+
+        minute =
+            String.fromInt (Time.toMinute zone time)
+
+        second =
+            String.fromInt (Time.toSecond zone time)
+    in
+    year ++ "-" ++ month ++ "-" ++ day ++ " " ++ hour ++ ":" ++ minute ++ ":" ++ second
+
+
+stringFromMonth : Time.Month -> String
+stringFromMonth month =
+    case month of
+        Time.Jan ->
+            "01"
+
+        Time.Feb ->
+            "02"
+
+        Time.Mar ->
+            "03"
+
+        Time.Apr ->
+            "04"
+
+        Time.May ->
+            "05"
+
+        Time.Jun ->
+            "06"
+
+        Time.Jul ->
+            "07"
+
+        Time.Aug ->
+            "08"
+
+        Time.Sep ->
+            "09"
+
+        Time.Oct ->
+            "10"
+
+        Time.Nov ->
+            "11"
+
+        Time.Dec ->
+            "12"
 
 
 
