@@ -109,6 +109,7 @@ type Msg
     | EditedFeed OriginalFeed (Result Http.Error Feed)
     | Refresh
     | Bookmark Entry
+    | MarkSeen Entry
     | UpdatedEntry Entry (Result Http.Error Entry)
 
 
@@ -247,6 +248,18 @@ update msg model =
             let
                 jsonBody =
                     [ ( "bookmark", Encode.bool (not entry.bookmark) ) ]
+                        |> Encode.object
+                        |> Http.jsonBody
+            in
+            ( { model | refreshing = True }
+            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+                |> Http.send (UpdatedEntry entry)
+            )
+
+        MarkSeen entry ->
+            let
+                jsonBody =
+                    [ ( "seen", Encode.bool (not entry.seen) ) ]
                         |> Encode.object
                         |> Http.jsonBody
             in
@@ -479,8 +492,18 @@ viewEntryItem entry =
                     ]
                     []
                 ]
-            , Html.button [ Html.Attributes.title "Mark as seen" ]
-                [ Html.i [ Html.Attributes.class "fa fa-check" ]
+            , Html.button
+                [ Html.Attributes.title "Mark as seen"
+                , Html.Events.onClick <| MarkSeen entry
+                ]
+                [ Html.i
+                    [ Html.Attributes.class <|
+                        if entry.seen then
+                            "far fa-envelope-open"
+
+                        else
+                            "far fa-envelope"
+                    ]
                     []
                 ]
             , Html.a [ Html.Attributes.class "button", Html.Attributes.href entry.link, Html.Attributes.title "Open" ]
