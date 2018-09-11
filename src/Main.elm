@@ -354,7 +354,7 @@ viewHeader refreshing =
                 ]
                 [ Html.i
                     [ Html.Attributes.class <|
-                        "fa fa-refresh"
+                        "fa fa-sync-alt"
                             ++ (if refreshing then
                                     " fa-spin"
 
