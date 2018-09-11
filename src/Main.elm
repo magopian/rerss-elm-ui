@@ -177,7 +177,7 @@ update msg model =
                         _ ->
                             Received [ feed ]
             in
-            ( { model | feeds = updatedFeeds }, Browser.Navigation.pushUrl model.key "#" )
+            ( { model | feeds = updatedFeeds }, Cmd.batch [ Browser.Navigation.pushUrl model.key "#", getEntries ] )
 
         EditingFeed originalFeed feed ->
             ( { model | page = EditFeedPage originalFeed feed }, Cmd.none )
