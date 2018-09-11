@@ -108,6 +108,7 @@ type Msg
     | EditFeed OriginalFeed Feed
     | EditedFeed OriginalFeed (Result Http.Error Feed)
     | Refresh
+    | Flag Entry
     | Bookmark Entry
     | MarkSeen Entry
     | UpdatedEntry Entry (Result Http.Error Entry)
@@ -243,6 +244,18 @@ update msg model =
 
         Refresh ->
             ( { model | refreshing = True }, Cmd.batch [ getEntries, getFeeds ] )
+
+        Flag entry ->
+            let
+                jsonBody =
+                    [ ( "flagged", Encode.bool (not entry.flagged) ) ]
+                        |> Encode.object
+                        |> Http.jsonBody
+            in
+            ( { model | refreshing = True }
+            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+                |> Http.send (UpdatedEntry entry)
+            )
 
         Bookmark entry ->
             let
@@ -470,14 +483,20 @@ viewEntryItem entry =
         , Html.a [ Html.Attributes.href "#" ]
             entryContent
         , Html.footer []
-            [ Html.button [ Html.Attributes.title "Add to your ReRSS feed" ]
-                [ Html.i [ Html.Attributes.class "fa fa-rss" ]
-                    []
+            [ Html.button
+                [ Html.Attributes.title "Remove from your ReRSS feed"
+                , Html.Events.onClick <| Flag entry
                 ]
-            , Html.button [ Html.Attributes.title "Remove from your ReRSS feed" ]
-                [ Html.i [ Html.Attributes.class "fa fa-stop" ]
-                    []
-                ]
+                (if entry.flagged then
+                    [ Html.i [ Html.Attributes.class "fa fa-plus-square" ]
+                        []
+                    ]
+
+                 else
+                    [ Html.i [ Html.Attributes.class "far fa-plus-square" ]
+                        []
+                    ]
+                )
             , Html.button
                 [ Html.Attributes.title "Bookmark: Read it later"
                 , Html.Events.onClick <| Bookmark entry
