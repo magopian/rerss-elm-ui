@@ -469,7 +469,14 @@ viewEntryItem entry =
                 [ Html.Attributes.title "Bookmark: Read it later"
                 , Html.Events.onClick <| Bookmark entry
                 ]
-                [ Html.i [ Html.Attributes.class "fa fa-bookmark" ]
+                [ Html.i
+                    [ Html.Attributes.class <|
+                        if entry.bookmark then
+                            "fa fa-bookmark"
+
+                        else
+                            "far fa-bookmark"
+                    ]
                     []
                 ]
             , Html.button [ Html.Attributes.title "Mark as seen" ]
