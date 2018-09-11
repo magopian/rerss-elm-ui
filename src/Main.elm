@@ -1,4 +1,4 @@
-module Main exposing (Model, Msg(..), init, main, update, view)
+port module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Browser.Navigation
@@ -31,6 +31,7 @@ type alias Model =
     , refreshing : Bool
     , filter : Filter
     , zone : Time.Zone
+    , progress : Float
     }
 
 
@@ -89,6 +90,7 @@ init flags url key =
       , refreshing = True
       , filter = All
       , zone = Time.utc
+      , progress = 0
       }
     , Cmd.batch [ getEntries, getFeeds, Task.perform AdjustTimeZone Time.here ]
     )
@@ -119,13 +121,15 @@ type Msg
     | EditingFeed OriginalFeed Feed
     | EditFeed OriginalFeed Feed
     | EditedFeed OriginalFeed (Result Http.Error Feed)
-    | Refresh
+    | Sync
     | Flag Entry
     | Bookmark Entry
     | MarkSeen Entry
     | UpdatedEntry Entry (Result Http.Error Entry)
     | UpdateFilter Filter
     | AdjustTimeZone Time.Zone
+    | UpdateProgress Float
+    | ProgressDone Bool
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -256,8 +260,8 @@ update msg model =
             in
             ( { model | feeds = updatedFeeds, entries = updatedEntries }, Browser.Navigation.pushUrl model.key "#" )
 
-        Refresh ->
-            ( { model | refreshing = True }, Cmd.batch [ getEntries, getFeeds ] )
+        Sync ->
+            ( { model | refreshing = True }, sync () )
 
         Flag entry ->
             let
@@ -321,6 +325,12 @@ update msg model =
         AdjustTimeZone zone ->
             ( { model | zone = zone }, Cmd.none )
 
+        UpdateProgress amount ->
+            ( { model | progress = amount }, Cmd.none )
+
+        ProgressDone _ ->
+            ( { model | progress = 0 }, Cmd.batch [ getEntries, getFeeds ] )
+
 
 
 ---- VIEW ----
@@ -362,7 +372,7 @@ view model =
     { title = "reRSS client"
     , body =
         [ Html.section [ Html.Attributes.class "main" ]
-            [ viewHeader model.refreshing
+            [ viewHeader model.refreshing model.progress
             , feedList
             , content
             , viewEntry
@@ -371,10 +381,21 @@ view model =
     }
 
 
-viewHeader : Bool -> Html.Html Msg
-viewHeader refreshing =
+viewHeader : Bool -> Float -> Html.Html Msg
+viewHeader refreshing currentProgress =
     Html.header [ Html.Attributes.class "header" ]
-        [ Html.progress [ Html.Attributes.style "display" "none" ] []
+        [ Html.progress
+            [ Html.Attributes.style "display"
+                (if currentProgress /= 0 then
+                    "block"
+
+                 else
+                    "none"
+                )
+            , Html.Attributes.id "progress"
+            , Html.Attributes.value <| String.fromFloat currentProgress
+            ]
+            []
         , Html.section []
             [ Html.a
                 [ Html.Attributes.href "#feeds"
@@ -395,8 +416,9 @@ viewHeader refreshing =
         , Html.section [ Html.Attributes.class "text-right" ]
             [ Html.a
                 [ Html.Attributes.href "#"
+                , Html.Attributes.title "Sync the RSS feeds"
                 , Html.Attributes.class "button"
-                , Html.Events.onClick Refresh
+                , Html.Events.onClick Sync
                 ]
                 [ Html.i
                     [ Html.Attributes.class <|
@@ -840,5 +862,30 @@ main =
         , onUrlChange = UrlChanged
         , onUrlRequest = LinkClicked
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
+
+
+
+---- SUBSCRIPTIONS ----
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ syncProgress UpdateProgress
+        , syncDone ProgressDone
+        ]
+
+
+
+---- PORTS ----
+
+
+port sync : () -> Cmd msg
+
+
+port syncProgress : (Float -> msg) -> Sub msg
+
+
+port syncDone : (Bool -> msg) -> Sub msg
