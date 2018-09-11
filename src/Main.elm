@@ -28,6 +28,7 @@ type alias Model =
     , feeds : RemoteData Feed
     , page : Page
     , refreshing : Bool
+    , filter : Filter
     }
 
 
@@ -70,6 +71,13 @@ type Page
     | EditFeedPage OriginalFeed Feed
 
 
+type Filter
+    = All
+    | Unseen
+    | Bookmarked
+    | Trending
+
+
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
     ( { key = key
@@ -77,6 +85,7 @@ init flags url key =
       , feeds = Requested
       , page = urlToPage url
       , refreshing = True
+      , filter = All
       }
     , Cmd.batch [ getEntries, getFeeds ]
     )
@@ -112,6 +121,7 @@ type Msg
     | Bookmark Entry
     | MarkSeen Entry
     | UpdatedEntry Entry (Result Http.Error Entry)
+    | UpdateFilter Filter
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -301,6 +311,9 @@ update msg model =
             in
             ( { model | entries = updatedEntries, refreshing = False }, Cmd.none )
 
+        UpdateFilter filter ->
+            ( { model | filter = filter }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -317,7 +330,7 @@ view model =
                             Html.text "Entries have been requested, please hold tight!"
 
                         Received entries ->
-                            viewEntries entries
+                            viewEntries entries model.filter
 
                         Error error ->
                             Html.text "An error occured while requesting the entries"
@@ -425,26 +438,51 @@ viewFeeds feeds =
         ]
 
 
-viewEntries : List Entry -> Html.Html Msg
-viewEntries entries =
+viewEntries : List Entry -> Filter -> Html.Html Msg
+viewEntries entries currentFilter =
+    let
+        filteredEntries =
+            case currentFilter of
+                All ->
+                    entries
+
+                Unseen ->
+                    List.filter (\e -> not e.seen) entries
+
+                Bookmarked ->
+                    List.filter (\e -> e.bookmark) entries
+
+                Trending ->
+                    entries
+    in
     Html.div []
-        [ viewTabs
+        [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.map viewEntryItem entries)
+            (List.map viewEntryItem filteredEntries)
         ]
 
 
-viewTabs =
+viewTabs currentFilter =
+    let
+        filterItem label filter =
+            Html.a
+                [ Html.Attributes.class <|
+                    if currentFilter == filter then
+                        "active"
+
+                    else
+                        ""
+                , Html.Attributes.href "#"
+                , Html.Events.onClick <| UpdateFilter filter
+                ]
+                [ Html.text label ]
+    in
     Html.div [ Html.Attributes.class "tabs" ]
         [ Html.nav [ Html.Attributes.class "tabs-nav" ]
-            [ Html.a [ Html.Attributes.class "{active: status == 'all'}", Html.Attributes.href "#" ]
-                [ Html.text "All" ]
-            , Html.a [ Html.Attributes.class "{active: status == 'unseen'}", Html.Attributes.href "#" ]
-                [ Html.text "Unseen" ]
-            , Html.a [ Html.Attributes.class "{active: status == 'bookmark'}", Html.Attributes.href "#" ]
-                [ Html.text "Bookmarked" ]
-            , Html.a [ Html.Attributes.class "{active: status == 'trending'}", Html.Attributes.href "#" ]
-                [ Html.text "Trending" ]
+            [ filterItem "All" All
+            , filterItem "Unseen" Unseen
+            , filterItem "Bookmarked" Bookmarked
+            , filterItem "Trending" Trending
             ]
         ]
 
