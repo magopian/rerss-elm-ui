@@ -320,7 +320,7 @@ viewHeader refreshing =
                 ]
             ]
         , Html.section [ Html.Attributes.class "text-center" ]
-            [ Html.a [ Html.Attributes.href "/" ] [ Html.text "uRSS" ]
+            [ Html.a [ Html.Attributes.href server ] [ Html.text "uRSS" ]
             ]
         , Html.section [ Html.Attributes.class "text-right" ]
             [ Html.a
