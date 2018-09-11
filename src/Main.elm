@@ -645,7 +645,7 @@ updatedDecoder =
 
 getEntries : Cmd Msg
 getEntries =
-    Http.get (server ++ "/entry?seen=0&bookmark=0") entriesDecoder
+    Http.get (server ++ "/entry") entriesDecoder
         |> Http.send NewEntries
 
 
