@@ -457,7 +457,7 @@ viewFeeds feeds =
                                 , Html.Attributes.href "#"
                                 , Html.Events.onClick (EditingFeed (OriginalFeed feed) feed)
                                 ]
-                                [ Html.i [ Html.Attributes.class "fa fa-pencil" ] [] ]
+                                [ Html.i [ Html.Attributes.class "fa fa-pencil-alt" ] [] ]
                             , Html.a
                                 [ Html.Attributes.href "#" ]
                                 [ Html.text (" " ++ feed.title) ]
