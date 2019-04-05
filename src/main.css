@@ -27,3 +27,10 @@
   top: 0;
 
 }
+.notifications {
+  grid-column: 1 / -1;
+}
+.notifications button {
+  box-shadow: none;
+  float: right;
+}

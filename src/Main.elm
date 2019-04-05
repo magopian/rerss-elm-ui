@@ -32,6 +32,7 @@ type alias Model =
     , filter : Filter
     , zone : Time.Zone
     , progress : Float
+    , notifications : Notifications
     }
 
 
@@ -81,6 +82,10 @@ type Filter
     | Trending
 
 
+type alias Notifications =
+    List String
+
+
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
     ( { key = key
@@ -91,6 +96,7 @@ init flags url key =
       , filter = All
       , zone = Time.utc
       , progress = 0
+      , notifications = []
       }
     , Cmd.batch [ getEntries, getFeeds, Task.perform AdjustTimeZone Time.here ]
     )
@@ -130,6 +136,7 @@ type Msg
     | AdjustTimeZone Time.Zone
     | UpdateProgress Float
     | ProgressDone Bool
+    | DiscardNotification Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -147,20 +154,12 @@ update msg model =
             ( { model | page = urlToPage url }, Cmd.none )
 
         NewEntries (Err error) ->
-            let
-                _ =
-                    Debug.log "error while retrieving entries" error
-            in
             ( { model | entries = Error error, refreshing = False }, Cmd.none )
 
         NewEntries (Ok entries) ->
             ( { model | entries = Received entries, refreshing = False }, Cmd.none )
 
         NewFeeds (Err error) ->
-            let
-                _ =
-                    Debug.log "error while retrieving feeds" error
-            in
             ( { model | feeds = Error error }, Cmd.none )
 
         NewFeeds (Ok feeds) ->
@@ -182,11 +181,9 @@ update msg model =
             )
 
         NewFeedAdded (Err error) ->
-            let
-                _ =
-                    Debug.log "error while adding new feed" error
-            in
-            ( model, Cmd.none )
+            ( { model | notifications = model.notifications ++ [ "Error while adding new feed" ] }
+            , Cmd.none
+            )
 
         NewFeedAdded (Ok feed) ->
             let
@@ -224,11 +221,9 @@ update msg model =
             )
 
         EditedFeed originalFeed (Err error) ->
-            let
-                _ =
-                    Debug.log "error while editing feed" error
-            in
-            ( model, Cmd.none )
+            ( { model | notifications = model.notifications ++ [ "Error while editing feed" ] }
+            , Cmd.none
+            )
 
         EditedFeed (OriginalFeed originalFeed) (Ok feed) ->
             let
@@ -300,11 +295,12 @@ update msg model =
             )
 
         UpdatedEntry originalEntry (Err error) ->
-            let
-                _ =
-                    Debug.log "error while updating entry" error
-            in
-            ( { model | refreshing = False }, Cmd.none )
+            ( { model
+                | refreshing = False
+                , notifications = model.notifications ++ [ "Error while updating entry" ]
+              }
+            , Cmd.none
+            )
 
         UpdatedEntry originalEntry (Ok entry) ->
             let
@@ -330,6 +326,9 @@ update msg model =
 
         ProgressDone _ ->
             ( { model | progress = 0 }, Cmd.batch [ getEntries, getFeeds ] )
+
+        DiscardNotification index ->
+            ( { model | notifications = listRemoveAtIndex index model.notifications }, Cmd.none )
 
 
 
@@ -373,12 +372,31 @@ view model =
     , body =
         [ Html.section [ Html.Attributes.class "main" ]
             [ viewHeader model.refreshing model.progress
+            , viewNotifications model.notifications
             , feedList
             , content
             , viewEntry
             ]
         ]
     }
+
+
+viewNotifications : Notifications -> Html.Html Msg
+viewNotifications notifications =
+    let
+        viewNotification index notif =
+            Html.div [ Html.Attributes.class "alert alert-secondary" ]
+                [ Html.text notif
+                , Html.button
+                    [ Html.Events.onClick <| DiscardNotification index ]
+                    [ Html.i [ Html.Attributes.class "fa fa-times" ] []
+                    ]
+                ]
+    in
+    Html.section [ Html.Attributes.class "notifications" ]
+        (notifications
+            |> List.indexedMap viewNotification
+        )
 
 
 viewHeader : Bool -> Float -> Html.Html Msg
@@ -784,6 +802,18 @@ listReplace original updated list =
                 else
                     element
             )
+
+
+listRemoveAtIndex : Int -> List a -> List a
+listRemoveAtIndex index list =
+    let
+        before =
+            List.take index list
+
+        after =
+            List.drop (index + 1) list
+    in
+    before ++ after
 
 
 displayTime : Time.Posix -> Time.Zone -> String
