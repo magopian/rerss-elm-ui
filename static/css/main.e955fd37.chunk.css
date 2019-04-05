@@ -1,0 +1,3 @@
+:root{--color-primary:#001f3f}.main{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 2fr 2fr;grid-gap:10px}.header{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;padding:2em}.card{border-bottom:1px solid #ccc;margin:1em;padding-bottom:1em}#progress{position:absolute;width:100%;left:0;right:0;top:0}.notifications{grid-column:1/-1}.notifications button{box-shadow:none;float:right}
+
+/*# sourceMappingURL=main.e955fd37.chunk.css.map*/
