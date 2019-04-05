@@ -33,6 +33,7 @@ type alias Model =
     , zone : Time.Zone
     , progress : Float
     , notifications : Notifications
+    , selectedEntry : Maybe Int
     }
 
 
@@ -97,6 +98,7 @@ init flags url key =
       , zone = Time.utc
       , progress = 0
       , notifications = []
+      , selectedEntry = Nothing
       }
     , Cmd.batch [ getEntries, getFeeds, Task.perform AdjustTimeZone Time.here ]
     )
@@ -137,6 +139,7 @@ type Msg
     | UpdateProgress Float
     | ProgressDone Bool
     | DiscardNotification Int
+    | SelectedEntry Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -330,6 +333,9 @@ update msg model =
         DiscardNotification index ->
             ( { model | notifications = listRemoveAtIndex index model.notifications }, Cmd.none )
 
+        SelectedEntry entryIndex ->
+            ( { model | selectedEntry = Just entryIndex }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -367,6 +373,21 @@ view model =
 
                 Error error ->
                     Html.text "An error occured while requesting the feeds"
+
+        selectedEntry =
+            case model.selectedEntry of
+                Just entryIndex ->
+                    case model.entries of
+                        Received entries ->
+                            entries
+                                |> List.drop entryIndex
+                                |> List.head
+
+                        _ ->
+                            Nothing
+
+                Nothing ->
+                    Nothing
     in
     { title = "reRSS client"
     , body =
@@ -375,7 +396,7 @@ view model =
             , viewNotifications model.notifications
             , feedList
             , content
-            , viewEntry
+            , viewEntry selectedEntry
             ]
         ]
     }
@@ -505,7 +526,7 @@ viewEntries entries currentFilter zone =
     Html.div [ Html.Attributes.class "feed-entries" ]
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.map (viewEntryItem zone) filteredEntries)
+            (List.indexedMap (viewEntryItem zone) filteredEntries)
         ]
 
 
@@ -534,22 +555,12 @@ viewTabs currentFilter =
         ]
 
 
-viewEntryItem : Time.Zone -> Entry -> Html.Html Msg
-viewEntryItem zone entry =
+viewEntryItem : Time.Zone -> Int -> Entry -> Html.Html Msg
+viewEntryItem zone entryIndex entry =
     let
         titleNode =
             Html.h4 []
                 [ Html.text entry.title ]
-
-        entryContent =
-            if entry.image /= "" then
-                [ titleNode
-                , Html.div [ Html.Attributes.class "card-image" ]
-                    [ Html.img [ Html.Attributes.class "img-responsive text-center", Html.Attributes.src entry.image ] [] ]
-                ]
-
-            else
-                [ titleNode ]
 
         button bool ( titleTrue, iconTrue ) ( titleFalse, iconFalse ) msg =
             Html.button
@@ -585,8 +596,8 @@ viewEntryItem zone entry =
         , Html.h6 []
             [ Html.text <| displayTime entry.updated zone
             ]
-        , Html.a [ Html.Attributes.href "#" ]
-            entryContent
+        , Html.a [ Html.Attributes.href "#", Html.Events.onClick <| SelectedEntry entryIndex ]
+            [ titleNode ]
         , Html.footer []
             [ button
                 entry.flagged
@@ -720,9 +731,74 @@ viewEditFeed originalFeed feed =
         ]
 
 
-viewEntry =
-    Html.section [ Html.Attributes.class "feed-content" ]
-        [ Html.div [] [] ]
+viewEntry : Maybe Entry -> Html.Html Msg
+viewEntry maybeEntry =
+    case maybeEntry of
+        Nothing ->
+            Html.text ""
+
+        Just entry ->
+            let
+                button bool ( titleTrue, labelTrue, iconTrue ) ( titleFalse, labelFalse, iconFalse ) msg =
+                    Html.button
+                        [ Html.Attributes.title
+                            (if bool then
+                                titleTrue
+
+                             else
+                                titleFalse
+                            )
+                        , Html.Events.onClick <| msg entry
+                        ]
+                        (if bool then
+                            [ Html.i [ Html.Attributes.class iconTrue ] []
+                            , Html.text labelTrue
+                            ]
+
+                         else
+                            [ Html.i [ Html.Attributes.class iconFalse ] []
+                            , Html.text labelFalse
+                            ]
+                        )
+            in
+            Html.section [ Html.Attributes.class "feed-content" ]
+                [ Html.h3 []
+                    [ Html.a [ Html.Attributes.href entry.link ] [ Html.text entry.title ] ]
+                , if entry.image /= "" then
+                    Html.div [ Html.Attributes.class "card-image" ]
+                        [ Html.img [ Html.Attributes.class "img-responsive text-center", Html.Attributes.src entry.image ] [] ]
+
+                  else
+                    Html.text ""
+                , Html.text entry.summary
+                , Html.text entry.content
+                , Html.hr [] []
+                , Html.footer []
+                    [ button
+                        entry.flagged
+                        ( "Remove from your ReRSS feed", " Unshare", "fa fa-plus-square" )
+                        ( "Add to your ReRSS feed", " Share", "far fa-plus-square" )
+                        Flag
+                    , Html.text " "
+                    , button
+                        entry.bookmark
+                        ( "Remove from your bookmarks", " Forget", "fa fa-bookmark" )
+                        ( "Bookmark: Read it later", " Bookmark", "far fa-bookmark" )
+                        Bookmark
+                    , Html.text " "
+                    , button
+                        entry.seen
+                        ( "Mark as unseen", " Mark as unseen", "far fa-envelope-open" )
+                        ( "Mark as seen", " Mark as seen", "far fa-envelope" )
+                        MarkSeen
+                    , Html.text " "
+                    , Html.a [ Html.Attributes.class "button", Html.Attributes.href entry.link, Html.Attributes.title "Open" ]
+                        [ Html.i [ Html.Attributes.class "fa fa-link" ]
+                            []
+                        ]
+                    ]
+                , Html.br [] []
+                ]
 
 
 
