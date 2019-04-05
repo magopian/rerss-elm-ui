@@ -550,6 +550,28 @@ viewEntryItem zone entry =
 
             else
                 [ titleNode ]
+
+        button bool ( titleTrue, iconTrue ) ( titleFalse, iconFalse ) msg =
+            Html.button
+                [ Html.Attributes.title
+                    (if bool then
+                        titleTrue
+
+                     else
+                        titleFalse
+                    )
+                , Html.Events.onClick <| msg entry
+                ]
+                (if bool then
+                    [ Html.i [ Html.Attributes.class iconTrue ]
+                        []
+                    ]
+
+                 else
+                    [ Html.i [ Html.Attributes.class iconFalse ]
+                        []
+                    ]
+                )
     in
     Html.div [ Html.Attributes.class "card" ]
         [ Html.h5 []
@@ -566,48 +588,21 @@ viewEntryItem zone entry =
         , Html.a [ Html.Attributes.href "#" ]
             entryContent
         , Html.footer []
-            [ Html.button
-                [ Html.Attributes.title "Remove from your ReRSS feed"
-                , Html.Events.onClick <| Flag entry
-                ]
-                (if entry.flagged then
-                    [ Html.i [ Html.Attributes.class "fa fa-plus-square" ]
-                        []
-                    ]
-
-                 else
-                    [ Html.i [ Html.Attributes.class "far fa-plus-square" ]
-                        []
-                    ]
-                )
-            , Html.button
-                [ Html.Attributes.title "Bookmark: Read it later"
-                , Html.Events.onClick <| Bookmark entry
-                ]
-                [ Html.i
-                    [ Html.Attributes.class <|
-                        if entry.bookmark then
-                            "fa fa-bookmark"
-
-                        else
-                            "far fa-bookmark"
-                    ]
-                    []
-                ]
-            , Html.button
-                [ Html.Attributes.title "Mark as seen"
-                , Html.Events.onClick <| MarkSeen entry
-                ]
-                [ Html.i
-                    [ Html.Attributes.class <|
-                        if entry.seen then
-                            "far fa-envelope-open"
-
-                        else
-                            "far fa-envelope"
-                    ]
-                    []
-                ]
+            [ button
+                entry.flagged
+                ( "Remove from your ReRSS feed", "fa fa-plus-square" )
+                ( "Add to your ReRSS feed", "far fa-plus-square" )
+                Flag
+            , button
+                entry.bookmark
+                ( "Remove from your bookmarks", "fa fa-bookmark" )
+                ( "Bookmark: Read it later", "far fa-bookmark" )
+                Bookmark
+            , button
+                entry.seen
+                ( "Mark as unseen", "far fa-envelope-open" )
+                ( "Mark as seen", "far fa-envelope" )
+                MarkSeen
             , Html.a [ Html.Attributes.class "button", Html.Attributes.href entry.link, Html.Attributes.title "Open" ]
                 [ Html.i [ Html.Attributes.class "fa fa-link" ]
                     []
