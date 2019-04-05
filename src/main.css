@@ -1,12 +1,17 @@
 :root {
   --color-primary: #001f3f;
 }
+html,
+body {
+  height: 100%;
+}
 .main {
   max-width: 1280px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 2fr 2fr;
   grid-gap: 10px;
+  height: 100%;
 }
 .header {
   grid-column: 1 / -1;
@@ -33,4 +38,10 @@
 .notifications button {
   box-shadow: none;
   float: right;
+}
+.main > .feed-list ,
+.main > .feed-entries ,
+.main > .feed-content {
+  overflow-y: auto;
+  height: 100%;
 }

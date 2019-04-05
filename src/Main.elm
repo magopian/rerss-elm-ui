@@ -464,7 +464,7 @@ viewHeader refreshing currentProgress =
 
 viewFeeds : List Feed -> Html.Html Msg
 viewFeeds feeds =
-    Html.aside []
+    Html.aside [ Html.Attributes.class "feed-list" ]
         [ Html.ul []
             (feeds
                 |> List.map
@@ -502,7 +502,7 @@ viewEntries entries currentFilter zone =
                 Trending ->
                     entries
     in
-    Html.div []
+    Html.div [ Html.Attributes.class "feed-entries" ]
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
             (List.map (viewEntryItem zone) filteredEntries)
@@ -721,7 +721,7 @@ viewEditFeed originalFeed feed =
 
 
 viewEntry =
-    Html.section []
+    Html.section [ Html.Attributes.class "feed-content" ]
         [ Html.div [] [] ]
 
 
