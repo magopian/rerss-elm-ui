@@ -144,7 +144,7 @@ type Msg
     | ProgressDone Bool
     | DiscardNotification Int
     | SelectedEntry Int
-    | SelectedFeed Feed
+    | ToggleFeed Feed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -341,8 +341,17 @@ update msg model =
         SelectedEntry entryIndex ->
             ( { model | selectedEntry = Just entryIndex }, Cmd.none )
 
-        SelectedFeed feed ->
-            ( { model | selectedFeed = Just feed }, Cmd.none )
+        ToggleFeed feed ->
+            case model.selectedFeed of
+                Nothing ->
+                    ( { model | selectedFeed = Just feed }, Cmd.none )
+
+                Just selectedFeed ->
+                    if selectedFeed == feed then
+                        ( { model | selectedFeed = Nothing }, Cmd.none )
+
+                    else
+                        ( { model | selectedFeed = Just feed }, Cmd.none )
 
 
 
@@ -377,7 +386,7 @@ view model =
                     Html.text "loading feeds"
 
                 Received feeds ->
-                    viewFeeds feeds
+                    viewFeeds feeds model.selectedFeed
 
                 Error error ->
                     Html.text "An error occured while requesting the feeds"
@@ -491,8 +500,21 @@ viewHeader refreshing currentProgress =
         ]
 
 
-viewFeeds : List Feed -> Html.Html Msg
-viewFeeds feeds =
+viewFeeds : List Feed -> Maybe Feed -> Html.Html Msg
+viewFeeds feeds selectedFeed =
+    let
+        feedStyle feed =
+            case selectedFeed of
+                Nothing ->
+                    Html.Attributes.style "" ""
+
+                Just selected ->
+                    if selected == feed then
+                        Html.Attributes.style "font-weight" "bold"
+
+                    else
+                        Html.Attributes.style "" ""
+    in
     Html.aside [ Html.Attributes.class "feed-list" ]
         [ Html.ul []
             (feeds
@@ -507,7 +529,8 @@ viewFeeds feeds =
                                 [ Html.i [ Html.Attributes.class "fa fa-pencil-alt" ] [] ]
                             , Html.a
                                 [ Html.Attributes.href "#"
-                                , Html.Events.onClick <| SelectedFeed feed
+                                , Html.Events.onClick <| ToggleFeed feed
+                                , feedStyle feed
                                 ]
                                 [ Html.text (" " ++ feed.title) ]
                             ]
