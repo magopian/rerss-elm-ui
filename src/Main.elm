@@ -36,6 +36,7 @@ type alias Model =
     , progress : Float
     , notifications : Notifications
     , selectedEntry : Maybe Int
+    , selectedFeed : Maybe Feed
     }
 
 
@@ -101,6 +102,7 @@ init flags url key =
       , progress = 0
       , notifications = []
       , selectedEntry = Nothing
+      , selectedFeed = Nothing
       }
     , Cmd.batch [ getEntries, getFeeds, Task.perform AdjustTimeZone Time.here ]
     )
@@ -142,6 +144,7 @@ type Msg
     | ProgressDone Bool
     | DiscardNotification Int
     | SelectedEntry Int
+    | SelectedFeed Feed
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -338,6 +341,9 @@ update msg model =
         SelectedEntry entryIndex ->
             ( { model | selectedEntry = Just entryIndex }, Cmd.none )
 
+        SelectedFeed feed ->
+            ( { model | selectedFeed = Just feed }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -354,7 +360,7 @@ view model =
                             Html.text "Entries have been requested, please hold tight!"
 
                         Received entries ->
-                            viewEntries entries model.filter model.zone
+                            viewEntries entries model.filter model.selectedFeed model.zone
 
                         Error error ->
                             Html.text "An error occured while requesting the entries"
@@ -500,7 +506,9 @@ viewFeeds feeds =
                                 ]
                                 [ Html.i [ Html.Attributes.class "fa fa-pencil-alt" ] [] ]
                             , Html.a
-                                [ Html.Attributes.href "#" ]
+                                [ Html.Attributes.href "#"
+                                , Html.Events.onClick <| SelectedFeed feed
+                                ]
                                 [ Html.text (" " ++ feed.title) ]
                             ]
                     )
@@ -508,8 +516,8 @@ viewFeeds feeds =
         ]
 
 
-viewEntries : List Entry -> Filter -> Time.Zone -> Html.Html Msg
-viewEntries entries currentFilter zone =
+viewEntries : List Entry -> Filter -> Maybe Feed -> Time.Zone -> Html.Html Msg
+viewEntries entries currentFilter selectedFeed zone =
     let
         filteredEntries =
             case currentFilter of
@@ -524,11 +532,23 @@ viewEntries entries currentFilter zone =
 
                 Trending ->
                     entries
+
+        selectedEntries =
+            case selectedFeed of
+                Nothing ->
+                    filteredEntries
+
+                Just feed ->
+                    filteredEntries
+                        |> List.filter
+                            (\entry ->
+                                List.member feed entry.sources
+                            )
     in
     Html.div [ Html.Attributes.class "feed-entries" ]
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.indexedMap (viewEntryItem zone) filteredEntries)
+            (List.indexedMap (viewEntryItem zone) selectedEntries)
         ]
 
 
