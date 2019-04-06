@@ -369,7 +369,7 @@ view model =
                             Html.text "Entries have been requested, please hold tight!"
 
                         Received entries ->
-                            viewEntries entries model.filter model.selectedFeed model.zone
+                            viewEntries entries model.filter model.selectedFeed model.selectedEntry model.zone
 
                         Error error ->
                             Html.text "An error occured while requesting the entries"
@@ -539,8 +539,8 @@ viewFeeds feeds selectedFeed =
         ]
 
 
-viewEntries : List Entry -> Filter -> Maybe Feed -> Time.Zone -> Html.Html Msg
-viewEntries entries currentFilter selectedFeed zone =
+viewEntries : List Entry -> Filter -> Maybe Feed -> Maybe Int -> Time.Zone -> Html.Html Msg
+viewEntries entries currentFilter selectedFeed selectedEntry zone =
     let
         filteredEntries =
             case currentFilter of
@@ -571,7 +571,7 @@ viewEntries entries currentFilter selectedFeed zone =
     Html.div [ Html.Attributes.class "feed-entries" ]
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.indexedMap (viewEntryItem zone) selectedEntries)
+            (List.indexedMap (viewEntryItem zone selectedEntry) selectedEntries)
         ]
 
 
@@ -600,9 +600,20 @@ viewTabs currentFilter =
         ]
 
 
-viewEntryItem : Time.Zone -> Int -> Entry -> Html.Html Msg
-viewEntryItem zone entryIndex entry =
+viewEntryItem : Time.Zone -> Maybe Int -> Int -> Entry -> Html.Html Msg
+viewEntryItem zone selectedEntry entryIndex entry =
     let
+        selectedClass =
+            selectedEntry
+                |> Maybe.withDefault -1
+                |> (\selected ->
+                        if selected == entryIndex then
+                            " selected"
+
+                        else
+                            ""
+                   )
+
         titleNode =
             Html.h4 []
                 [ Html.text entry.title ]
@@ -629,7 +640,7 @@ viewEntryItem zone entryIndex entry =
                     ]
                 )
     in
-    Html.div [ Html.Attributes.class "card" ]
+    Html.div [ Html.Attributes.class <| "card" ++ selectedClass ]
         [ Html.h5 []
             [ Html.span [ Html.Attributes.class "label" ]
                 (entry.sources
