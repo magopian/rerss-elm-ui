@@ -272,9 +272,13 @@ update msg model =
                     [ ( "flagged", Encode.bool (not entry.flagged) ) ]
                         |> Encode.object
                         |> Http.jsonBody
+
+                link =
+                    entry.link
+                        |> Url.percentEncode
             in
             ( { model | refreshing = True }
-            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+            , Http.post (server ++ "/entry/" ++ link) jsonBody entryDecoder
                 |> Http.send (UpdatedEntry entry)
             )
 
@@ -284,9 +288,13 @@ update msg model =
                     [ ( "bookmark", Encode.bool (not entry.bookmark) ) ]
                         |> Encode.object
                         |> Http.jsonBody
+
+                link =
+                    entry.link
+                        |> Url.percentEncode
             in
             ( { model | refreshing = True }
-            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+            , Http.post (server ++ "/entry/" ++ link) jsonBody entryDecoder
                 |> Http.send (UpdatedEntry entry)
             )
 
@@ -296,9 +304,13 @@ update msg model =
                     [ ( "seen", Encode.bool (not entry.seen) ) ]
                         |> Encode.object
                         |> Http.jsonBody
+
+                link =
+                    entry.link
+                        |> Url.percentEncode
             in
             ( { model | refreshing = True }
-            , Http.post (server ++ "/entry/" ++ entry.link) jsonBody entryDecoder
+            , Http.post (server ++ "/entry/" ++ link) jsonBody entryDecoder
                 |> Http.send (UpdatedEntry entry)
             )
 
