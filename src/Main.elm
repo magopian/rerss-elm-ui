@@ -5,6 +5,8 @@ import Browser.Navigation
 import Html
 import Html.Attributes
 import Html.Events
+import Html.Parser
+import Html.Parser.Util
 import Http
 import Json.Decode as Decode
 import Json.Decode.Pipeline as Pipeline
@@ -344,7 +346,7 @@ update msg model =
 view : Model -> Browser.Document Msg
 view model =
     let
-        content =
+        feedEntries =
             case model.page of
                 HomePage ->
                     case model.entries of
@@ -395,7 +397,7 @@ view model =
             [ viewHeader model.refreshing model.progress
             , viewNotifications model.notifications
             , feedList
-            , content
+            , feedEntries
             , viewEntry selectedEntry
             ]
         ]
@@ -760,6 +762,16 @@ viewEntry maybeEntry =
                             , Html.text labelFalse
                             ]
                         )
+
+                textHtml : String -> Html.Html Msg
+                textHtml string =
+                    case Html.Parser.run string of
+                        Ok nodes ->
+                            Html.div [] <|
+                                Html.Parser.Util.toVirtualDom nodes
+
+                        Err _ ->
+                            Html.text ""
             in
             Html.section [ Html.Attributes.class "feed-content" ]
                 [ Html.h3 []
@@ -770,8 +782,8 @@ viewEntry maybeEntry =
 
                   else
                     Html.text ""
-                , Html.text entry.summary
-                , Html.text entry.content
+                , textHtml entry.summary
+                , textHtml entry.content
                 , Html.hr [] []
                 , Html.footer []
                     [ button
