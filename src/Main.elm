@@ -35,7 +35,7 @@ type alias Model =
     , zone : Time.Zone
     , progress : Float
     , notifications : Notifications
-    , selectedEntry : Maybe Int
+    , selectedEntry : Maybe String
     , selectedFeed : Maybe Feed
     }
 
@@ -143,7 +143,7 @@ type Msg
     | UpdateProgress Float
     | ProgressDone Bool
     | DiscardNotification Int
-    | SelectedEntry Int
+    | SelectedEntry String
     | ToggleFeed Feed
 
 
@@ -350,8 +350,8 @@ update msg model =
         DiscardNotification index ->
             ( { model | notifications = listRemoveAtIndex index model.notifications }, Cmd.none )
 
-        SelectedEntry entryIndex ->
-            ( { model | selectedEntry = Just entryIndex }, Cmd.none )
+        SelectedEntry entryLink ->
+            ( { model | selectedEntry = Just entryLink }, Cmd.none )
 
         ToggleFeed feed ->
             case model.selectedFeed of
@@ -405,11 +405,11 @@ view model =
 
         selectedEntry =
             case model.selectedEntry of
-                Just entryIndex ->
+                Just entryLink ->
                     case model.entries of
                         Received entries ->
                             entries
-                                |> List.drop entryIndex
+                                |> List.filter (\entry -> entry.link == entryLink)
                                 |> List.head
 
                         _ ->
@@ -551,7 +551,7 @@ viewFeeds feeds selectedFeed =
         ]
 
 
-viewEntries : List Entry -> Filter -> Maybe Feed -> Maybe Int -> Time.Zone -> Html.Html Msg
+viewEntries : List Entry -> Filter -> Maybe Feed -> Maybe String -> Time.Zone -> Html.Html Msg
 viewEntries entries currentFilter selectedFeed selectedEntry zone =
     let
         filteredEntries =
@@ -583,7 +583,7 @@ viewEntries entries currentFilter selectedFeed selectedEntry zone =
     Html.div [ Html.Attributes.class "feed-entries" ]
         [ viewTabs currentFilter
         , Html.div [ Html.Attributes.class "cards" ]
-            (List.indexedMap (viewEntryItem zone selectedEntry) selectedEntries)
+            (List.map (viewEntryItem zone selectedEntry) selectedEntries)
         ]
 
 
@@ -612,14 +612,14 @@ viewTabs currentFilter =
         ]
 
 
-viewEntryItem : Time.Zone -> Maybe Int -> Int -> Entry -> Html.Html Msg
-viewEntryItem zone selectedEntry entryIndex entry =
+viewEntryItem : Time.Zone -> Maybe String -> Entry -> Html.Html Msg
+viewEntryItem zone selectedEntry entry =
     let
         selectedClass =
             selectedEntry
-                |> Maybe.withDefault -1
+                |> Maybe.withDefault ""
                 |> (\selected ->
-                        if selected == entryIndex then
+                        if selected == entry.link then
                             " selected"
 
                         else
@@ -664,7 +664,7 @@ viewEntryItem zone selectedEntry entryIndex entry =
         , Html.h6 []
             [ Html.text <| displayTime entry.updated zone
             ]
-        , Html.a [ Html.Attributes.href "#", Html.Events.onClick <| SelectedEntry entryIndex ]
+        , Html.a [ Html.Attributes.href "#", Html.Events.onClick <| SelectedEntry entry.link ]
             [ titleNode ]
         , Html.footer []
             [ button
